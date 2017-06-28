@@ -29,6 +29,9 @@ object netdb {
                   service: CString,
                   servlen: socket.socklen_t,
                   flags: CInt): CInt = extern
+
+  @name("scalanative_freeaddrinfo")
+  def freeaddrinfo(addr: Ptr[addrinfo]): Unit = extern
 }
 
 object netdbOps {

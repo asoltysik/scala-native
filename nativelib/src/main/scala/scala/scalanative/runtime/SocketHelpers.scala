@@ -16,7 +16,7 @@ object SocketHelpers {
     Zone { implicit z =>
       val cIP   = toCString(ip)
       var hints = stackalloc[addrinfo]
-      var ret   = stackalloc[addrinfo]
+      var ret   = z.alloc(sizeof[addrinfo]).cast[Ptr[addrinfo]]
 
       string.memset(hints.cast[Ptr[Byte]], 0, sizeof[addrinfo])
       hints.ai_family = AF_UNSPEC
@@ -33,13 +33,17 @@ object SocketHelpers {
 
       val sock = socket(ret.ai_family, SOCK_STREAM, ret.ai_protocol);
       if (sock < 0) {
+        freeaddrinfo(ret)
         return false
       }
       val connectRes = connect(sock, ret.ai_addr, ret.ai_addrlen)
       if (connectRes < 0) {
         close(sock)
+        freeaddrinfo(ret)
         return false
       }
+
+      freeaddrinfo(ret)
 
       val sentBytes = send(sock, toCString("echo"), 4, 0)
       if (sentBytes < 4) {
@@ -84,8 +88,10 @@ object SocketHelpers {
       hints.ai_next = null
 
       status = getaddrinfo(toCString(host), null, hints, ret)
-      if (status != 0)
+      if (status != 0) {
+        freeaddrinfo(ret)
         return None
+      }
 
       var addr = stackalloc[Byte]
       if (ret.ai_family == AF_INET) {
@@ -94,6 +100,7 @@ object SocketHelpers {
         addr = ret.ai_addr.cast[Ptr[sockaddr_in6]].sin6_addr.cast[Ptr[Byte]]
       }
       inet_ntop(ret.ai_family, addr, !ipstr, INET6_ADDRSTRLEN.toUInt)
+      freeaddrinfo(ret)
       return Some(fromCString(!ipstr))
     }
   }
@@ -115,8 +122,10 @@ object SocketHelpers {
       val retArray = scala.collection.mutable.ArrayBuffer[String]()
       status = getaddrinfo(toCString(host), null, hints, ret)
 
-      if (status != 0)
+      if (status != 0) {
+        freeaddrinfo(ret)
         return scala.Array.empty[String]
+      }
 
       while (ret != null) {
         var ipstr = stackalloc[CChar](INET6_ADDRSTRLEN + 1)
@@ -130,6 +139,7 @@ object SocketHelpers {
         retArray += fromCString(ipstr)
         ret = ret.ai_next.cast[Ptr[addrinfo]]
       }
+      freeaddrinfo(ret)
       return retArray.toArray
     }
   }
